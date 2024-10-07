@@ -6,18 +6,34 @@
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
     <style>
-      #slider {
-        position: absolute;
-        top: 10px;
-        left: 10px;
-        z-index: 9999;
-        width: 200px;
+      #slider-container {
+          position: absolute;
+          top: 10px;
+          left: 10px;
+          z-index: 9999;
+          display: flex;
+          flex-direction: column;
       }
-    </style>
+      .slider {
+          margin: 5px;
+      }
+      .value-display {
+          font-size: 16px;
+      }
+  </style>
   </head>
 
   <body style="margin: 0; overflow: hidden">
-    <input type="range" id="slider" min="0" max="360" value="0" />
+    <div id="slider-container">
+      <label>X Rotation: <span id="valueX">0</span>°</label>
+      <input type="range" id="sliderX" class="slider" min="0" max="360" value="0">
+      
+      <label>Y Rotation: <span id="valueY">0</span>°</label>
+      <input type="range" id="sliderY" class="slider" min="0" max="360" value="0">
+      
+      <label>Z Rotation: <span id="valueZ">0</span>°</label>
+      <input type="range" id="sliderZ" class="slider" min="0" max="360" value="0">
+  </div>
     <a-scene
       vr-mode-ui="enabled: false;"
       loading-screen="enabled: false;"
@@ -85,13 +101,31 @@
       <a-entity camera></a-entity>
     </a-scene>
     <script>
-      const slider = document.getElementById("slider");
-      const model = document.getElementById("Calavera");
+      const model = document.getElementById('Calavera');
+      const sliderX = document.getElementById('sliderX');
+      const sliderY = document.getElementById('sliderY');
+      const sliderZ = document.getElementById('sliderZ');
 
-      slider.addEventListener("input", function () {
-        const rotationY = this.value; // Obtener el valor del slider
-        model.setAttribute("rotation", `0 ${rotationY} 0`); // Aplicar la rotación al modelo
-      });
-    </script>
+      const valueX = document.getElementById('valueX');
+      const valueY = document.getElementById('valueY');
+      const valueZ = document.getElementById('valueZ');
+
+      // Función para actualizar la rotación y los valores en pantalla
+      function updateRotation() {
+          const rotationX = sliderX.value;
+          const rotationY = sliderY.value;
+          const rotationZ = sliderZ.value;
+
+          model.setAttribute('rotation', `${rotationX} ${rotationY} ${rotationZ}`);
+          valueX.textContent = rotationX;
+          valueY.textContent = rotationY;
+          valueZ.textContent = rotationZ;
+      }
+
+      // Agregar eventos de entrada a los sliders
+      sliderX.addEventListener('input', updateRotation);
+      sliderY.addEventListener('input', updateRotation);
+      sliderZ.addEventListener('input', updateRotation);
+  </script>
   </body>
 </html>
