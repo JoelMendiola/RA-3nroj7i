@@ -1,13 +1,23 @@
-<!doctype html>
+<!DOCTYPE html>
 <html>
   <head>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
+    <style>
+      #slider {
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        width: 200px;
+      }
+    </style>
   </head>
 
-  <body style="margin: 0; overflow: hidden;">
+  <body style="margin: 0; overflow: hidden">
+    <input type="range" id="slider" min="0" max="360" value="0" />
     <a-scene
       vr-mode-ui="enabled: false;"
       loading-screen="enabled: false;"
@@ -45,10 +55,11 @@
         cursor="fuse: false; rayOrigin: mouse;"
       >
         <a-entity
+          id="Calavera" 
           gltf-model="assets/asset.gltf"
           scale="10 10 10"
           position="0 0 0"
-          rotation="0 0 90"
+          rotation="0 0 0"
         ></a-entity>
       </a-marker>
 
@@ -71,9 +82,16 @@
           gesture-handler
         ></a-video>
       </a-marker> -->
-
       <a-entity camera></a-entity>
     </a-scene>
+    <script>
+      const slider = document.getElementById("slider");
+      const model = document.getElementById("Calavera");
+
+      slider.addEventListener("input", function () {
+        const rotationY = this.value; // Obtener el valor del slider
+        model.setAttribute("rotation", `0 ${rotationY} 0`); // Aplicar la rotación al modelo
+      });
+    </script>
   </body>
 </html>
-
