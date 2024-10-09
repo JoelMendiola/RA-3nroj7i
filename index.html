@@ -1,40 +1,68 @@
 <!DOCTYPE html>
 <html>
   <head>
+    <meta charset="utf-8" />
+    <meta http-equiv="X-UA-Compatible" content="IE=edge" />
+    <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
+    <script src="https://unpkg.com/aframe-look-at-component@0.8.0/dist/aframe-look-at-component.min.js"></script>
+    <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
     <style>
       #slider-container {
-          position: absolute;
-          top: 10px;
-          left: 10px;
-          z-index: 9999;
-          display: flex;
-          flex-direction: column;
+        position: absolute;
+        top: 10px;
+        left: 10px;
+        z-index: 9999;
+        display: flex;
+        flex-direction: column;
       }
       .slider {
-          margin: 5px;
+        margin: 5px;
       }
       .value-display {
-          font-size: 16px;
+        font-size: 16px;
       }
-  </style>
+    </style>
   </head>
 
   <body style="margin: 0; overflow: hidden">
     <div id="slider-container">
       <label>X Rotation: <span id="valueX">0</span>°</label>
-      <input type="range" id="sliderX" class="slider" min="0" max="360" value="0">
-      
+      <input
+        type="range"
+        id="sliderX"
+        class="slider"
+        min="0"
+        max="360"
+        value="0"
+      />
+
       <label>Y Rotation: <span id="valueY">0</span>°</label>
-      <input type="range" id="sliderY" class="slider" min="0" max="360" value="0">
-      
+      <input
+        type="range"
+        id="sliderY"
+        class="slider"
+        min="0"
+        max="360"
+        value="0"
+      />
+
       <label>Z Rotation: <span id="valueZ">0</span>°</label>
-      <input type="range" id="sliderZ" class="slider" min="0" max="360" value="0">
-  </div>
+      <input
+        type="range"
+        id="sliderZ"
+        class="slider"
+        min="0"
+        max="360"
+        value="0"
+      />
+    </div>
     <a-scene
+      renderer="logarithmicDepthBuffer: true;"
       vr-mode-ui="enabled: false;"
       loading-screen="enabled: false;"
       arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
@@ -71,12 +99,12 @@
         cursor="fuse: false; rayOrigin: mouse;"
       >
         <a-entity
-          id="Calavera" 
+          id="Calavera"
           gltf-model="assets/asset.gltf"
           scale="10 10 10"
           position="0 0 0"
-          rotation="157 281 108"
-          animation="property: rotation; to: 247 281 108; loop: true; dur: 5000; easing: linear"
+          rotation="157 0 108"
+          animation="property: rotation; to: 247 360 108; loop: true; dur: 5000; easing: linear"
         ></a-entity>
       </a-marker>
 
@@ -99,34 +127,52 @@
           gesture-handler
         ></a-video>
       </a-marker> -->
+
+      <a-assets>
+        <a-asset-item
+          id="animated-asset"
+          src="assets/skull-black.gltf"
+        ></a-asset-item>
+      </a-assets>
+
+      <a-entity
+        look-at="[gps-camera]"
+        animation-mixer="loop: repeat"
+        gltf-model="#animated-asset"
+        scale="2.20000002403668 2.20000002403668 2.20000002403668"
+        gps-entity-place="latitude: 20.9598256; longitude: -101.2840114;"
+      ></a-entity>
       <a-entity camera></a-entity>
     </a-scene>
     <script>
-      const model = document.getElementById('Calavera');
-      const sliderX = document.getElementById('sliderX');
-      const sliderY = document.getElementById('sliderY');
-      const sliderZ = document.getElementById('sliderZ');
+      const model = document.getElementById("Calavera");
+      const sliderX = document.getElementById("sliderX");
+      const sliderY = document.getElementById("sliderY");
+      const sliderZ = document.getElementById("sliderZ");
 
-      const valueX = document.getElementById('valueX');
-      const valueY = document.getElementById('valueY');
-      const valueZ = document.getElementById('valueZ');
+      const valueX = document.getElementById("valueX");
+      const valueY = document.getElementById("valueY");
+      const valueZ = document.getElementById("valueZ");
 
       // Función para actualizar la rotación y los valores en pantalla
       function updateRotation() {
-          const rotationX = sliderX.value;
-          const rotationY = sliderY.value;
-          const rotationZ = sliderZ.value;
+        const rotationX = sliderX.value;
+        const rotationY = sliderY.value;
+        const rotationZ = sliderZ.value;
 
-          model.setAttribute('rotation', `${rotationX} ${rotationY} ${rotationZ}`);
-          valueX.textContent = rotationX;
-          valueY.textContent = rotationY;
-          valueZ.textContent = rotationZ;
+        model.setAttribute(
+          "rotation",
+          `${rotationX} ${rotationY} ${rotationZ}`
+        );
+        valueX.textContent = rotationX;
+        valueY.textContent = rotationY;
+        valueZ.textContent = rotationZ;
       }
 
       // Agregar eventos de entrada a los sliders
-      sliderX.addEventListener('input', updateRotation);
-      sliderY.addEventListener('input', updateRotation);
-      sliderZ.addEventListener('input', updateRotation);
-  </script>
+      sliderX.addEventListener("input", updateRotation);
+      sliderY.addEventListener("input", updateRotation);
+      sliderZ.addEventListener("input", updateRotation);
+    </script>
   </body>
 </html>
