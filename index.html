@@ -20,9 +20,11 @@
         display: flex;
         flex-direction: column;
       }
+
       .slider {
         margin: 5px;
       }
+
       .value-display {
         font-size: 16px;
       }
@@ -142,6 +144,7 @@
         scale="10 10 10"
         gps-entity-place="latitude: 20.9598256; longitude: -101.2840114;"
       ></a-entity>
+      <a-camera gps-camera rotation-reader></a-camera>
       <a-entity camera></a-entity>
     </a-scene>
     <script>
