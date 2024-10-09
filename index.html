@@ -3,7 +3,6 @@
   <head>
     <script src="https://aframe.io/releases/1.0.4/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar.js"></script>
-    <script src="https://raw.githack.com/donmccurdy/aframe-extras/master/dist/aframe-extras.loaders.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-detector.js"></script>
     <script src="https://raw.githack.com/AR-js-org/studio-backend/master/src/modules/marker/tools/gesture-handler.js"></script>
     <style>
@@ -15,11 +14,9 @@
         display: flex;
         flex-direction: column;
       }
-
       .slider {
         margin: 5px;
       }
-
       .value-display {
         font-size: 16px;
       }
@@ -59,13 +56,12 @@
       />
     </div>
     <a-scene
-    vr-mode-ui="enabled: false;"
-    loading-screen="enabled: false;"
-    renderer="logarithmicDepthBuffer: true;"
-    arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
-    id="scene"
-    embedded
-    gesture-detector
+      vr-mode-ui="enabled: false;"
+      loading-screen="enabled: false;"
+      arjs="trackingMethod: best; sourceType: webcam; debugUIEnabled: false;"
+      id="scene"
+      embedded
+      gesture-detector
     >
       <!-- Primer marcador con una imagen -->
       <a-marker
@@ -81,7 +77,7 @@
           src="assets/calaverita1.jpg"
           scale="1 1 1"
           class="clickable"
-          rotation="-90 0 0"
+          rotation="90 0 0"
         ></a-image>
       </a-marker>
 
@@ -96,17 +92,15 @@
         cursor="fuse: false; rayOrigin: mouse;"
       >
         <a-entity
-          id="Calavera"
           gltf-model="assets/asset.gltf"
           scale="10 10 10"
           position="0 0 0"
-          rotation="157 0 108"
-          animation="property: rotation; to: 247 360 108; loop: true; dur: 5000; easing: linear"
+          rotation="157 281 108"
+          animation="property: rotation; to: 247 281 108; loop: true; dur: 5000; easing: linear"       
         ></a-entity>
       </a-marker>
 
       <!-- Tercer marcador con un video 
-       animation="property: rotation; to: 0 360 0; loop: true; dur: 5000; easing: linear"
       <a-marker
         id="marker3"
         type="pattern"
@@ -124,10 +118,12 @@
           gesture-handler
         ></a-video>
       </a-marker> -->
+
       <a-entity camera></a-entity>
     </a-scene>
+
     <script>
-      const model = document.getElementById("Calavera");
+      const model = document.getElementById("myModel");
       const sliderX = document.getElementById("sliderX");
       const sliderY = document.getElementById("sliderY");
       const sliderZ = document.getElementById("sliderZ");
