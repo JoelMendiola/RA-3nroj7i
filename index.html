@@ -128,24 +128,7 @@
           gesture-handler
         ></a-video>
       </a-marker> -->
-      <a-assets>
-        <a-asset-item
-          id="animated-asset"
-          src="assets/skull-black.gltf"
-        ></a-asset-item>
-      </a-assets>
-
-      <a-entity
-        look-at="[gps-camera]"
-        animation-mixer="loop: repeat"
-        gltf-model="#animated-asset"
-        scale="2.5 2.5 2.5"
-        gps-entity-place="latitude: 20.960118; longitude: -101.284204;"
-      ></a-entity>
-
-      <a-camera gps-camera rotation-reader></a-camera>
-
-      <!--<a-entity camera></a-entity>-->
+      <a-entity camera></a-entity>
     </a-scene>
     <script>
       const model = document.getElementById("Calavera");
