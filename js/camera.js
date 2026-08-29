@@ -46,43 +46,36 @@ async function getUserMediaSafe(constraints) {
   }
 }
 
-export async function startCamera() {
+export async function startCamera(preferredFacing = 'user') {
   const video = document.getElementById('camera-video');
 
-  // Prefer the environment camera without forcing a particular lens or zoom.
-  const baseConstraints = {
-    audio: false,
-    video: {
-      facingMode: { ideal: 'environment' },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 30 },
-    },
-  };
+  const order = preferredFacing === 'user' ? ['user', 'environment'] : ['environment', 'user'];
+  let stream = null;
+  let facing = preferredFacing;
 
-  let stream = await getUserMediaSafe(baseConstraints);
-
-  if (!stream) {
+  for (const requestedFacing of order) {
     stream = await getUserMediaSafe({
       audio: false,
       video: {
-        facingMode: { ideal: 'environment' },
+        facingMode: { ideal: requestedFacing },
         width: { ideal: 1280 },
         height: { ideal: 720 },
         frameRate: { ideal: 30 },
       },
     });
+    if (stream) {
+      facing = requestedFacing;
+      break;
+    }
   }
-
-  let facing = 'environment';
-  let synthetic = false;
 
   if (!stream) {
-    console.warn('Cámara del entorno no disponible, usando fuente sintética');
+    console.warn('No hay cámara disponible, usando fuente sintética');
     stream = createSyntheticStream();
-    synthetic = true;
     facing = 'synthetic';
   }
+
+  const synthetic = facing === 'synthetic';
 
   if (video.srcObject) {
     video.srcObject.getTracks().forEach((t) => t.stop());
@@ -99,9 +92,9 @@ export async function startCamera() {
 
   return {
     video,
-    facing,           // camera selected by the browser | 'synthetic'
+    facing,           // 'user' | 'environment' | 'synthetic'
     synthetic,
-    mirror: false,
+    mirror: facing === 'user',
     width: video.videoWidth,
     height: video.videoHeight,
   };

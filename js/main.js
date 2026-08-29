@@ -523,6 +523,8 @@ function wireUI() {
     e.target.classList.toggle('active', v);
   });
 
+  document.getElementById('btn-camera').addEventListener('click', switchCamera);
+
   document.getElementById('btn-webxr').addEventListener('click', () => {
     if (app.webxr?.active) app.webxr.exit();
     else enterWebXR();
@@ -567,10 +569,13 @@ function updateStatus() {
   } else if (app.mode === 'vr') {
     text = `Modo VR · Objetos: ${app.objects.length}`;
   } else {
-    const cam = app.synthetic ? 'Simulación: sin cámara' : 'Cámara activa';
+    const cam = app.synthetic ? 'Simulación' : app.facing === 'user' ? 'Cámara frontal' : 'Cámara trasera';
     text = `${cam} · Manos: ${tracked} · Pinza: ${pinched}`;
   }
   el.textContent = text;
+
+  const camBtn = document.getElementById('btn-camera');
+  if (camBtn) camBtn.textContent = app.facing === 'user' ? 'Cambiar a cámara trasera' : 'Cambiar a cámara frontal';
 
   const modeBtn = document.getElementById('btn-mode');
   if (modeBtn) modeBtn.textContent = app.mode === 'ar' ? 'Modo VR' : 'Modo AR';
@@ -696,6 +701,18 @@ function configureCamera(result) {
   if (app.videoPanels) app.videoPanels.setMirror(result.mirror);
 }
 
+async function switchCamera() {
+  const target = app.facing === 'user' ? 'environment' : 'user';
+  try {
+    const result = await startCamera(target);
+    configureCamera(result);
+    updateStatus();
+  } catch (err) {
+    console.error(err);
+    toast('No se pudo cambiar de cámara');
+  }
+}
+
 async function enterWebXR() {
   if (app.webxr?.active || app.mode === 'xr') return;
 
@@ -748,7 +765,7 @@ async function exitWebXR() {
   resetObjects('sbs');
 
   try {
-    const result = await startCamera();
+    const result = await startCamera(app.facing === 'environment' ? 'environment' : 'user');
     configureCamera(result);
     app.videoPanels.setVisible(true);
   } catch (err) {
@@ -766,7 +783,7 @@ async function start() {
   startBtn.textContent = 'Iniciando cámara…';
 
   try {
-    const result = await startCamera();
+    const result = await startCamera('user');
     configureCamera(result);
 
     const { renderer, scene, camera, stereo } = initThree();
