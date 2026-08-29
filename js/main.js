@@ -7,7 +7,7 @@ import { Surfaces } from './surfaces.js';
 import { spawnObject, sync, grabObject, holdObject, releaseObject } from './objects.js';
 import { createHandLandmarker, HandTracker, HAND_CONNECTIONS } from './hands.js';
 import { createVideoPanels } from './video-panels.js';
-import { WebXRSession } from './webxr.js';
+import { WebXRSession, XR_HAND_CONNECTIONS } from './webxr.js';
 
 window.__app = {};
 
@@ -27,6 +27,8 @@ Object.assign(app, {
   videoPanels: null,
   webxr: null,
   handVis: null,
+  xrHandVis: null,
+  xrPrevPinch: [false, false],
   mode: 'ar',
   frameCount: 0,
   lastFpsTime: 0,
@@ -248,6 +250,111 @@ function updateHandVisualizers() {
   }
 }
 
+function nearestObject3D(pos, radius) {
+  let best = null;
+  let bestD = radius;
+  for (const obj of app.objects) {
+    if (obj.heldBy >= 0) continue;
+    const d = obj.body.position.distanceTo(pos);
+    if (d < bestD) {
+      bestD = d;
+      best = obj;
+    }
+  }
+  return best;
+}
+
+function createXRHandVisualizers() {
+  app.xrHandVis = [];
+  const colors = [0x35e07f, 0x4db8ff];
+  for (let i = 0; i < 2; i++) {
+    const ptsGeo = new THREE.BufferGeometry();
+    ptsGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(25 * 3), 3));
+    const pts = new THREE.Points(ptsGeo, new THREE.PointsMaterial({
+      color: colors[i],
+      size: 0.012,
+      sizeAttenuation: true,
+    }));
+    pts.visible = false;
+    pts.frustumCulled = false;
+
+    const lineGeo = new THREE.BufferGeometry();
+    lineGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(XR_HAND_CONNECTIONS.length * 2 * 3), 3));
+    const lines = new THREE.LineSegments(lineGeo, new THREE.LineBasicMaterial({
+      color: colors[i],
+      transparent: true,
+      opacity: 0.75,
+    }));
+    lines.visible = false;
+    lines.frustumCulled = false;
+
+    app.scene.add(pts, lines);
+    app.xrHandVis.push({ pts, lines, ptsGeo, lineGeo });
+  }
+}
+
+function updateXRHandVisualizers(hands) {
+  if (!app.xrHandVis || !hands) return;
+  for (let i = 0; i < 2; i++) {
+    const state = hands[i];
+    const v = app.xrHandVis[i];
+    const tracked = !!(state && state.tracked);
+    v.pts.visible = tracked;
+    v.lines.visible = tracked;
+    if (!tracked) continue;
+
+    const col = state.pinch ? 0xffd166 : (i === 0 ? 0x35e07f : 0x4db8ff);
+    v.pts.material.color.setHex(col);
+    v.lines.material.color.setHex(col);
+
+    const pa = v.ptsGeo.attributes.position.array;
+    for (let k = 0; k < 25; k++) {
+      const p = state.points[k];
+      pa[k * 3] = p.x;
+      pa[k * 3 + 1] = p.y;
+      pa[k * 3 + 2] = p.z;
+    }
+    v.ptsGeo.attributes.position.needsUpdate = true;
+
+    const la = v.lineGeo.attributes.position.array;
+    for (let c = 0; c < XR_HAND_CONNECTIONS.length; c++) {
+      const a = state.points[XR_HAND_CONNECTIONS[c][0]];
+      const b = state.points[XR_HAND_CONNECTIONS[c][1]];
+      la[c * 6] = a.x;
+      la[c * 6 + 1] = a.y;
+      la[c * 6 + 2] = a.z;
+      la[c * 6 + 3] = b.x;
+      la[c * 6 + 4] = b.y;
+      la[c * 6 + 5] = b.z;
+    }
+    v.lineGeo.attributes.position.needsUpdate = true;
+  }
+}
+
+function updateXRInteraction() {
+  const hands = app.webxr?.hands || [];
+  for (let i = 0; i < 2; i++) {
+    const h = hands[i];
+    const prevPinch = app.xrPrevPinch[i];
+
+    if (h && h.tracked && h.pinch && !prevPinch) {
+      const obj = nearestObject3D(h.tip, 0.16);
+      if (obj) {
+        grabObject(obj, i);
+        app.heldByHand[i] = obj;
+      }
+    } else if ((!h || !h.tracked || !h.pinch) && prevPinch) {
+      const obj = app.heldByHand[i];
+      if (obj) {
+        releaseObject(obj, h || { velocity: new THREE.Vector3() });
+        app.heldByHand[i] = null;
+      }
+    }
+
+    app.xrPrevPinch[i] = !!(h && h.tracked && h.pinch);
+  }
+}
+
 function wireUI() {
   const floorSlider = document.getElementById('slider-floor');
   const wallSlider = document.getElementById('slider-wall');
@@ -398,11 +505,17 @@ function animate(time, frame) {
     if (app.webxr?.active) {
       app.webxr.onFrame(frame);
     }
-    if (app.video?.readyState >= 2) {
-      app.tracker.update(app.video, now).then(() => {}).catch(() => {});
+    updateXRInteraction();
+
+    app.world.step(1 / 60, dt, 4);
+    for (let i = 0; i < 2; i++) {
+      const obj = app.heldByHand[i];
+      const h = app.webxr?.hands?.[i];
+      if (obj && h && h.tracked) holdObject(obj, h.tip);
     }
-    stepPhysics(dt);
-    updateHandVisualizers();
+    for (const obj of app.objects) if (obj.heldBy < 0) sync(obj);
+
+    updateXRHandVisualizers(app.webxr?.hands);
     app.renderer.render(app.scene, app.camera);
   } else {
     app.videoPanels.draw();
@@ -459,7 +572,12 @@ async function enterWebXR() {
 
   app.mode = 'xr';
 
-  // Mantenemos la cámara activa (oculta) para seguir rastreando las manos con MediaPipe.
+  // En XR usamos el hand-tracking nativo de WebXR (coincide con el espacio de los modelos).
+  // Detenemos la cámara frontal/MediaPipe, que ya no es necesaria.
+  if (app.video?.srcObject) {
+    app.video.srcObject.getTracks().forEach((t) => t.stop());
+    app.video.srcObject = null;
+  }
   app.videoPanels.setVisible(false);
   for (let i = 0; i < 2; i++) {
     if (app.heldByHand[i]) {
@@ -550,6 +668,7 @@ async function start() {
     app.webxr.callbacks.onEnd = () => exitWebXR();
 
     createHandVisualizers();
+    createXRHandVisualizers();
 
     spawnInitialObjects();
     wireUI();
