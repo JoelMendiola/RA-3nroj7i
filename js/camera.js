@@ -46,74 +46,30 @@ async function getUserMediaSafe(constraints) {
   }
 }
 
-function isRearMainCamera(device) {
-  const label = (device.label || '').toLowerCase();
-  if (!label) return false;
-  if (!/(back|rear|environment|trasera|posterior)/.test(label)) return false;
-  return !/(ultra.?wide|ultrawide|wide.?angle|gran angular|macro|telephoto|teleobjetivo|0\.5x|2x|3x)/.test(label);
-}
-
 export async function startCamera() {
   const video = document.getElementById('camera-video');
 
-  // Never switch to the selfie or auxiliary rear camera: use the main rear camera at 1x.
+  // Prefer the environment camera without forcing a particular lens or zoom.
   const baseConstraints = {
     audio: false,
     video: {
-      facingMode: { exact: 'environment' },
+      facingMode: { ideal: 'environment' },
       width: { ideal: 1280 },
       height: { ideal: 720 },
       frameRate: { ideal: 30 },
-      resizeMode: { exact: 'none' },
-      zoom: { ideal: 1 },
     },
   };
 
   let stream = await getUserMediaSafe(baseConstraints);
-  let selectedDeviceId = '';
-
-  // Once permission is granted, prefer a labelled rear main lens over ultra-wide/tele lenses.
-  if (stream && navigator.mediaDevices?.enumerateDevices) {
-    const devices = await navigator.mediaDevices.enumerateDevices().catch(() => []);
-    const rearCandidates = devices.filter((device) => device.kind === 'videoinput' && isRearMainCamera(device));
-    const mainRear = rearCandidates.sort((a, b) => {
-      const score = (device) => {
-        const label = (device.label || '').toLowerCase();
-        return (/(main|principal|back camera 0|rear camera 0|camera 0)/.test(label) ? 2 : 0)
-          + (/(back|rear|environment|trasera|posterior)/.test(label) ? 1 : 0);
-      };
-      return score(b) - score(a);
-    })[0];
-    if (mainRear?.deviceId) {
-      selectedDeviceId = mainRear.deviceId;
-      const currentId = stream.getVideoTracks()[0]?.getSettings?.().deviceId;
-      if (currentId && currentId !== selectedDeviceId) {
-        stream.getTracks().forEach((track) => track.stop());
-        stream = await getUserMediaSafe({
-          audio: false,
-          video: {
-            deviceId: { exact: selectedDeviceId },
-            facingMode: { exact: 'environment' },
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-            resizeMode: { exact: 'none' },
-            zoom: { ideal: 1 },
-          },
-        });
-      }
-    }
-  }
 
   if (!stream) {
     stream = await getUserMediaSafe({
       audio: false,
       video: {
-        facingMode: { exact: 'environment' },
-      width: { ideal: 1280 },
-      height: { ideal: 720 },
-      frameRate: { ideal: 30 },
-        resizeMode: { exact: 'none' },
+        facingMode: { ideal: 'environment' },
+        width: { ideal: 1280 },
+        height: { ideal: 720 },
+        frameRate: { ideal: 30 },
       },
     });
   }
@@ -122,7 +78,7 @@ export async function startCamera() {
   let synthetic = false;
 
   if (!stream) {
-    console.warn('Cámara trasera 1x no disponible, usando fuente sintética');
+    console.warn('Cámara del entorno no disponible, usando fuente sintética');
     stream = createSyntheticStream();
     synthetic = true;
     facing = 'synthetic';
@@ -141,15 +97,9 @@ export async function startCamera() {
     setTimeout(resolve, 1500);
   });
 
-  const track = stream.getVideoTracks()[0];
-  const capabilities = track?.getCapabilities?.();
-  if (track?.applyConstraints && capabilities?.zoom && capabilities.zoom.min <= 1 && capabilities.zoom.max >= 1) {
-    await track.applyConstraints({ advanced: [{ zoom: 1 }] }).catch(() => {});
-  }
-
   return {
     video,
-    facing,           // 'environment' | 'synthetic'
+    facing,           // camera selected by the browser | 'synthetic'
     synthetic,
     mirror: false,
     width: video.videoWidth,

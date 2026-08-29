@@ -567,7 +567,7 @@ function updateStatus() {
   } else if (app.mode === 'vr') {
     text = `Modo VR · Objetos: ${app.objects.length}`;
   } else {
-    const cam = app.synthetic ? 'Simulación: sin cámara trasera' : 'Cámara trasera 1x';
+    const cam = app.synthetic ? 'Simulación: sin cámara' : 'Cámara activa';
     text = `${cam} · Manos: ${tracked} · Pinza: ${pinched}`;
   }
   el.textContent = text;
