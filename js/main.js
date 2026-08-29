@@ -810,7 +810,8 @@ async function start() {
     app.webxr.callbacks.onFrame = (det) => {
       setHandTrackingLegend(!det.handTrackingAvailable);
       if (det.floorY !== null) {
-        app.surfaces.setFloorY(clamp(det.floorY, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX));
+        // In XR local-floor is expressed at y=0, unlike the camera-mode slider.
+        app.surfaces.setFloorY(app.mode === 'xr' ? det.floorY : clamp(det.floorY, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX));
       }
     };
     app.webxr.callbacks.onEnd = () => exitWebXR();

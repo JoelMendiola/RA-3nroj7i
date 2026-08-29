@@ -68,8 +68,9 @@ export class WebXRSession {
 
   async enter() {
     const sessionInit = {
-      requiredFeatures: ['hit-test', 'local-floor'],
-      optionalFeatures: ['dom-overlay', 'hand-tracking'],
+      // local-floor is available immediately; hit-test is only used to refine it.
+      requiredFeatures: ['local-floor'],
+      optionalFeatures: ['hit-test', 'dom-overlay', 'hand-tracking'],
     };
 
     const hud = document.getElementById('hud');
@@ -175,7 +176,9 @@ export class WebXRSession {
     this.referenceSpace = this.renderer.xr.getReferenceSpace();
     this._requestSources();
 
-    const detections = { floorY: null, handTrackingAvailable: false };
+    // The local-floor reference space is already anchored to the detected floor.
+    // Do not wait for the asynchronous hit-test source to show the floor.
+    const detections = { floorY: 0, handTrackingAvailable: false };
 
     if (!this.referenceSpace) return detections;
 
@@ -187,8 +190,6 @@ export class WebXRSession {
         if (hit) detections.floorY = hit.py;
       }
     }
-
-    if (detections.floorY === null) detections.floorY = 0;
 
     this._updateHands(frame, this.referenceSpace);
     detections.handTrackingAvailable = (this.session.inputSources || []).some((source) => !!source.hand);
