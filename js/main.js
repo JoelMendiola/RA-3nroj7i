@@ -29,6 +29,9 @@ Object.assign(app, {
   handVis: null,
   xrHandVis: null,
   xrPrevPinch: [false, false],
+  xrControllers: [],
+  xrTouch: null,
+  xrRaycaster: null,
   mode: 'ar',
   frameCount: 0,
   lastFpsTime: 0,
@@ -355,6 +358,140 @@ function updateXRInteraction() {
   }
 }
 
+function pickFromXRRay(controller) {
+  app.xrRaycaster.setFromXRController(controller);
+  const hits = app.xrRaycaster.intersectObjects(app.objects.map((o) => o.mesh), false);
+  if (!hits.length) return null;
+  const obj = app.objects.find((candidate) => candidate.mesh === hits[0].object);
+  return obj ? { obj, distance: hits[0].distance } : null;
+}
+
+function holdXRControllerObject(controllerData) {
+  const obj = controllerData.object;
+  if (!obj) return;
+  const now = performance.now();
+  app.xrRaycaster.setFromXRController(controllerData.controller);
+  const p = app.xrRaycaster.ray.origin.clone().add(
+    app.xrRaycaster.ray.direction.clone().multiplyScalar(controllerData.distance)
+  );
+  const dt = Math.max((now - controllerData.lastTime) / 1000, 1 / 120);
+  if (controllerData.lastTime > 0) {
+    controllerData.velocity.copy(p).sub(controllerData.lastPoint).multiplyScalar(1 / dt);
+    if (controllerData.velocity.length() > 14) controllerData.velocity.setLength(14);
+  }
+  holdObject(obj, p);
+  controllerData.lastPoint.copy(p);
+  controllerData.lastTime = now;
+}
+
+function startXRControllerGrab(index) {
+  const data = app.xrControllers[index];
+  if (!data || app.webxr?.hands?.[index]?.tracked) return;
+  const hit = pickFromXRRay(data.controller);
+  if (!hit) return;
+  data.object = hit.obj;
+  data.distance = hit.distance;
+  data.lastPoint.copy(hit.obj.body.position);
+  data.lastTime = performance.now();
+  grabObject(hit.obj, index);
+}
+
+function endXRControllerGrab(index) {
+  const data = app.xrControllers[index];
+  if (!data?.object) return;
+  releaseObject(data.object, { velocity: data.velocity });
+  data.object = null;
+}
+
+function createXRControllerFallbacks() {
+  app.xrRaycaster = new THREE.Raycaster();
+  app.xrControllers = [];
+
+  for (let i = 0; i < 2; i++) {
+    const controller = app.renderer.xr.getController(i);
+    const line = new THREE.Line(
+      new THREE.BufferGeometry().setFromPoints([new THREE.Vector3(), new THREE.Vector3(0, 0, -1)]),
+      new THREE.LineBasicMaterial({ color: 0x35e07f, transparent: true, opacity: 0.65 })
+    );
+    line.scale.z = 3;
+    controller.add(line);
+    controller.addEventListener('selectstart', () => startXRControllerGrab(i));
+    controller.addEventListener('selectend', () => endXRControllerGrab(i));
+    app.scene.add(controller);
+    app.xrControllers.push({
+      controller,
+      object: null,
+      distance: 0,
+      lastPoint: new THREE.Vector3(),
+      lastTime: 0,
+      velocity: new THREE.Vector3(),
+    });
+  }
+}
+
+function updateXRControllerFallbacks() {
+  for (const data of app.xrControllers) {
+    if (!data.object) continue;
+    holdXRControllerObject(data);
+  }
+}
+
+function pickFromScreen(clientX, clientY) {
+  const rect = app.renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((clientX - rect.left) / rect.width) * 2 - 1,
+    -((clientY - rect.top) / rect.height) * 2 + 1
+  );
+  app.xrRaycaster.setFromCamera(ndc, app.camera);
+  const hits = app.xrRaycaster.intersectObjects(app.objects.map((o) => o.mesh), false);
+  if (!hits.length) return null;
+  const obj = app.objects.find((candidate) => candidate.mesh === hits[0].object);
+  return obj ? { obj, distance: hits[0].distance } : null;
+}
+
+function onXRPointerDown(event) {
+  if (app.mode !== 'xr') return;
+  if (event.target.closest('button, input, label, .controls, .sliders')) return;
+  if (app.webxr?.hands?.some((h) => h.tracked)) return;
+  const hit = pickFromScreen(event.clientX, event.clientY);
+  if (!hit) return;
+  app.xrTouch = {
+    object: hit.obj,
+    distance: hit.distance,
+    lastPoint: hit.obj.body.position.clone(),
+    lastTime: performance.now(),
+    velocity: new THREE.Vector3(),
+  };
+  grabObject(hit.obj, 0);
+  event.preventDefault();
+}
+
+function onXRPointerMove(event) {
+  if (!app.xrTouch || app.mode !== 'xr') return;
+  const rect = app.renderer.domElement.getBoundingClientRect();
+  const ndc = new THREE.Vector2(
+    ((event.clientX - rect.left) / rect.width) * 2 - 1,
+    -((event.clientY - rect.top) / rect.height) * 2 + 1
+  );
+  app.xrRaycaster.setFromCamera(ndc, app.camera);
+  const p = app.xrRaycaster.ray.origin.clone().add(
+    app.xrRaycaster.ray.direction.clone().multiplyScalar(app.xrTouch.distance)
+  );
+  const now = performance.now();
+  const dt = Math.max((now - app.xrTouch.lastTime) / 1000, 1 / 120);
+  app.xrTouch.velocity.copy(p).sub(app.xrTouch.lastPoint).multiplyScalar(1 / dt);
+  if (app.xrTouch.velocity.length() > 14) app.xrTouch.velocity.setLength(14);
+  holdObject(app.xrTouch.object, p);
+  app.xrTouch.lastPoint.copy(p);
+  app.xrTouch.lastTime = now;
+}
+
+function onXRPointerUp() {
+  if (!app.xrTouch) return;
+  releaseObject(app.xrTouch.object, { velocity: app.xrTouch.velocity });
+  app.xrTouch = null;
+}
+
 function wireUI() {
   const floorSlider = document.getElementById('slider-floor');
   const wallSlider = document.getElementById('slider-wall');
@@ -386,8 +523,6 @@ function wireUI() {
     e.target.classList.toggle('active', v);
   });
 
-  document.getElementById('btn-camera').addEventListener('click', switchCamera);
-
   document.getElementById('btn-webxr').addEventListener('click', () => {
     if (app.webxr?.active) app.webxr.exit();
     else enterWebXR();
@@ -398,6 +533,10 @@ function wireUI() {
   });
 
   window.addEventListener('pointerdown', onTapSpawn);
+  window.addEventListener('pointerdown', onXRPointerDown, { passive: false });
+  window.addEventListener('pointermove', onXRPointerMove, { passive: false });
+  window.addEventListener('pointerup', onXRPointerUp);
+  window.addEventListener('pointercancel', onXRPointerUp);
 }
 
 function onTapSpawn(e) {
@@ -424,19 +563,21 @@ function updateStatus() {
 
   let text;
   if (app.mode === 'xr') {
-    text = 'AR WebXR · detectando el suelo';
+    text = 'AR WebXR · suelo detectado · mano o toque para interactuar';
   } else if (app.mode === 'vr') {
     text = `Modo VR · Objetos: ${app.objects.length}`;
   } else {
-    const cam = app.synthetic ? 'Simulación' : app.facing === 'user' ? 'Cámara frontal' : 'Cámara trasera';
+    const cam = app.synthetic ? 'Simulación: sin cámara trasera' : 'Cámara trasera 1x';
     text = `${cam} · Manos: ${tracked} · Pinza: ${pinched}`;
   }
   el.textContent = text;
 
-  const camBtn = document.getElementById('btn-camera');
-  if (camBtn) camBtn.textContent = app.facing === 'user' ? 'Cambiar a cámara trasera' : 'Cambiar a cámara frontal';
   const modeBtn = document.getElementById('btn-mode');
   if (modeBtn) modeBtn.textContent = app.mode === 'ar' ? 'Modo VR' : 'Modo AR';
+}
+
+function setHandTrackingLegend(visible) {
+  document.getElementById('hand-tracking-legend')?.classList.toggle('hidden', !visible);
 }
 
 function checkWebXRSupport() {
@@ -466,12 +607,10 @@ function setMode(mode) {
         app.heldByHand[i] = null;
       }
     }
-    document.getElementById('btn-camera').disabled = true;
     toast('Modo VR: agarra y lanza con el gesto de pinza');
   } else {
     app.renderer.setClearColor(0x000000, 0);
     app.videoPanels.setVisible(true);
-    document.getElementById('btn-camera').disabled = false;
     toast('Modo AR activado');
   }
 
@@ -506,6 +645,8 @@ function animate(time, frame) {
       app.webxr.onFrame(frame);
     }
     updateXRInteraction();
+    updateXRControllerFallbacks();
+    if (app.xrTouch?.object) holdObject(app.xrTouch.object, app.xrTouch.lastPoint);
 
     app.world.step(1 / 60, dt, 4);
     for (let i = 0; i < 2; i++) {
@@ -555,25 +696,14 @@ function configureCamera(result) {
   if (app.videoPanels) app.videoPanels.setMirror(result.mirror);
 }
 
-async function switchCamera() {
-  const target = app.facing === 'user' ? 'environment' : 'user';
-  try {
-    const result = await startCamera(target);
-    configureCamera(result);
-    updateStatus();
-  } catch (err) {
-    console.error(err);
-    toast('No se pudo cambiar de cámara');
-  }
-}
-
 async function enterWebXR() {
   if (app.webxr?.active || app.mode === 'xr') return;
 
   app.mode = 'xr';
+  setHandTrackingLegend(false);
 
   // En XR usamos el hand-tracking nativo de WebXR (coincide con el espacio de los modelos).
-  // Detenemos la cámara frontal/MediaPipe, que ya no es necesaria.
+  // Detenemos la captura auxiliar de MediaPipe; WebXR usa la cámara trasera de ARCore.
   if (app.video?.srcObject) {
     app.video.srcObject.getTracks().forEach((t) => t.stop());
     app.video.srcObject = null;
@@ -610,6 +740,7 @@ async function enterWebXR() {
 async function exitWebXR() {
   // Volver al modo SBS con cámara + manos
   app.mode = 'ar';
+  setHandTrackingLegend(false);
 
   app.surfaces.setFloorY(CONFIG.INITIAL_FLOOR_Y);
   app.surfaces.setWallZ(CONFIG.INITIAL_WALL_Z);
@@ -617,10 +748,9 @@ async function exitWebXR() {
   resetObjects('sbs');
 
   try {
-    const result = await startCamera(app.facing === 'environment' ? 'environment' : 'user');
+    const result = await startCamera();
     configureCamera(result);
     app.videoPanels.setVisible(true);
-    document.getElementById('btn-camera').disabled = false;
   } catch (err) {
     console.error(err);
     toast('No se pudo reactivar la cámara');
@@ -636,7 +766,7 @@ async function start() {
   startBtn.textContent = 'Iniciando cámara…';
 
   try {
-    const result = await startCamera('user');
+    const result = await startCamera();
     configureCamera(result);
 
     const { renderer, scene, camera, stereo } = initThree();
@@ -661,6 +791,7 @@ async function start() {
 
     app.webxr = new WebXRSession(renderer);
     app.webxr.callbacks.onFrame = (det) => {
+      setHandTrackingLegend(!det.handTrackingAvailable);
       if (det.floorY !== null) {
         app.surfaces.setFloorY(clamp(det.floorY, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX));
       }
@@ -669,6 +800,7 @@ async function start() {
 
     createHandVisualizers();
     createXRHandVisualizers();
+    createXRControllerFallbacks();
 
     spawnInitialObjects();
     wireUI();

@@ -175,7 +175,7 @@ export class WebXRSession {
     this.referenceSpace = this.renderer.xr.getReferenceSpace();
     this._requestSources();
 
-    const detections = { floorY: null };
+    const detections = { floorY: null, handTrackingAvailable: false };
 
     if (!this.referenceSpace) return detections;
 
@@ -191,6 +191,7 @@ export class WebXRSession {
     if (detections.floorY === null) detections.floorY = 0;
 
     this._updateHands(frame, this.referenceSpace);
+    detections.handTrackingAvailable = (this.session.inputSources || []).some((source) => !!source.hand);
 
     this.callbacks.onFrame?.(detections);
     return detections;

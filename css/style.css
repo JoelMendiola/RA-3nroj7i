@@ -116,6 +116,20 @@ body {
   text-shadow: 0 1px 2px #000;
 }
 
+.hand-legend {
+  color: #ffd166;
+  border: 1px solid rgba(255, 209, 102, 0.65);
+  background: rgba(40, 28, 4, 0.78);
+  border-radius: 5px;
+  padding: 3px 7px;
+  font-size: 11px;
+  white-space: nowrap;
+}
+
+.hand-legend.hidden {
+  display: none;
+}
+
 .hud-bottom {
   padding: 10px;
   display: flex;

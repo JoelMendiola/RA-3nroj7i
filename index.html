@@ -34,13 +34,13 @@
         <div class="title">AR Estereoscópica SBS</div>
         <div id="status" class="status">Inicializando…</div>
         <div id="fps" class="fps">-- fps</div>
+        <div id="hand-tracking-legend" class="hand-legend hidden">hand-tracking no disponible</div>
       </div>
 
       <div class="hud-bottom">
         <div class="controls">
           <button id="btn-reset" class="btn">Reiniciar objetos</button>
           <button id="btn-guides" class="btn active">Planos visibles</button>
-          <button id="btn-camera" class="btn">Cambiar a cámara trasera</button>
           <button id="btn-mode" class="btn">Modo AR</button>
           <button id="btn-webxr" class="btn">AR WebXR</button>
         </div>
@@ -83,7 +83,7 @@
         <li>Coloca el teléfono en las gafas Cardboard para ver el efecto 3D.</li>
       </ul>
       <button id="btn-start">INICIAR</button>
-      <p class="small">Se usará la cámara frontal para rastrear tus manos. Puedes cambiar a la trasera desde la interfaz.</p>
+      <p class="small">Se usará siempre la cámara trasera a zoom 1x. Si no está disponible, se usará una simulación local.</p>
     </div>
   </div>
 
