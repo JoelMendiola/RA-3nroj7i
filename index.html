@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Crect width='16' height='16' rx='3' fill='%2335e07f'/%3E%3Ccircle cx='8' cy='8' r='4' fill='%2306220f'/%3E%3C/svg%3E" />
+  <title>AR Estereoscópica - Agarres y rebotes (Google Cardboard)</title>
+  <link rel="stylesheet" href="css/style.css" />
+  <script type="importmap">
+    {
+      "imports": {
+        "three": "https://cdn.jsdelivr.net/npm/three@0.185.1/build/three.module.js",
+        "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.185.1/examples/jsm/",
+        "cannon-es": "https://cdn.jsdelivr.net/npm/cannon-es@0.20.0/dist/cannon-es.js",
+        "@mediapipe/tasks-vision": "https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@1.0.1/vision_bundle.mjs"
+      }
+    }
+  </script>
+</head>
+<body>
+  <div id="stage">
+    <div class="video-panel" id="video-left-panel">
+      <canvas id="video-left"></canvas>
+    </div>
+    <div class="video-panel" id="video-right-panel">
+      <canvas id="video-right"></canvas>
+    </div>
+    <canvas id="stereo-canvas"></canvas>
+    <div class="seam"></div>
+
+    <div id="hud">
+      <div class="hud-top">
+        <div class="title">AR Estereoscópica SBS</div>
+        <div id="status" class="status">Inicializando…</div>
+        <div id="fps" class="fps">-- fps</div>
+      </div>
+
+      <div class="hud-bottom">
+        <div class="controls">
+          <button id="btn-reset" class="btn">Reiniciar objetos</button>
+          <button id="btn-guides" class="btn active">Planos visibles</button>
+          <button id="btn-cal-floor" class="btn" disabled>Dibujar suelo</button>
+          <button id="btn-camera" class="btn">Cambiar a cámara trasera</button>
+          <button id="btn-mode" class="btn">Modo AR</button>
+          <button id="btn-webxr" class="btn">AR WebXR</button>
+        </div>
+
+        <div class="sliders">
+          <label class="slider-row">
+            <span>Altura del suelo</span>
+            <input id="slider-floor" type="range" min="-2.5" max="-0.2" step="0.05" value="-0.75" />
+            <output id="out-floor">-0.75 m</output>
+          </label>
+          <label class="slider-row">
+            <span>Distancia de la pared</span>
+            <input id="slider-wall" type="range" min="-6" max="-0.5" step="0.05" value="-2.0" />
+            <output id="out-wall">-2.00 m</output>
+          </label>
+          <label class="slider-row">
+            <span>Separación ocular (IPD)</span>
+            <input id="slider-ipd" type="range" min="0.030" max="0.090" step="0.001" value="0.064" />
+            <output id="out-ipd">0.064 m</output>
+          </label>
+        </div>
+
+        <div class="hint" id="hint">
+          Pinza (pulgar + índice) cerca de un objeto para agarrarlo · Abre la mano para lanzarlo · Toca la pantalla para crear objetos
+        </div>
+      </div>
+
+      <div id="toast" class="toast hidden"></div>
+    </div>
+  </div>
+
+  <div id="start-screen">
+    <div class="start-card">
+      <h1>AR Estereoscópica</h1>
+      <p>Demo de realidad aumentada para móvil con Google Cardboard.</p>
+      <ul>
+        <li>Vista lado a lado (SBS) con la cámara.</li>
+        <li>Objetos 3D con físicas que rebotan en el suelo y la pared.</li>
+        <li>Agarra objetos con el gesto de pinza y lánzalos abriendo la mano.</li>
+        <li>Coloca el teléfono en las gafas Cardboard para ver el efecto 3D.</li>
+      </ul>
+      <button id="btn-start">INICIAR</button>
+      <p class="small">Se usará la cámara frontal para rastrear tus manos. Puedes cambiar a la trasera desde la interfaz.</p>
+    </div>
+  </div>
+
+  <video id="camera-video" playsinline muted autoplay></video>
+  <script type="module" src="js/main.js"></script>
+</body>
+</html>
