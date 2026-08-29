@@ -398,7 +398,11 @@ function animate(time, frame) {
     if (app.webxr?.active) {
       app.webxr.onFrame(frame);
     }
+    if (app.video?.readyState >= 2) {
+      app.tracker.update(app.video, now).then(() => {}).catch(() => {});
+    }
     stepPhysics(dt);
+    updateHandVisualizers();
     app.renderer.render(app.scene, app.camera);
   } else {
     app.videoPanels.draw();
@@ -450,20 +454,12 @@ async function switchCamera() {
   }
 }
 
-function stopCameraFeed() {
-  if (app.video?.srcObject) {
-    app.video.srcObject.getTracks().forEach((t) => t.stop());
-    app.video.srcObject = null;
-  }
-}
-
 async function enterWebXR() {
   if (app.webxr?.active || app.mode === 'xr') return;
 
   app.mode = 'xr';
 
-  // Detener cámara y manos (el passthrough lo gestiona ARCore)
-  stopCameraFeed();
+  // Mantenemos la cámara activa (oculta) para seguir rastreando las manos con MediaPipe.
   app.videoPanels.setVisible(false);
   for (let i = 0; i < 2; i++) {
     if (app.heldByHand[i]) {

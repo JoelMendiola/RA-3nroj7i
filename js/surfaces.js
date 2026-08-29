@@ -72,7 +72,6 @@ export class Surfaces {
 
     group.add(grid, plane);
     group.position.set(position[0], position[1], position[2]);
-    group.rotation.set(euler[0], euler[1], euler[2]);
     this.group.add(group);
     return group;
   }
