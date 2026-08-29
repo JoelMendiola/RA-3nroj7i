@@ -1,12 +1,10 @@
 import * as THREE from 'three';
-import * as CANNON from 'cannon-es';
 import { CONFIG, clamp } from './config.js';
 import { addPlaneBody } from './physics.js';
 
 const LEFT_RIGHT = 1.2;
 const FRONT_BACK = -0.25;
 const CEIL_Y = 2.6;
-const FLOOR_THICKNESS = 0.1;
 
 export class Surfaces {
   constructor(scene, world, surfaceMat) {
@@ -16,11 +14,6 @@ export class Surfaces {
     this.floorY = CONFIG.INITIAL_FLOOR_Y;
     this.wallZ = CONFIG.INITIAL_WALL_Z;
     this.guidesVisible = true;
-    this.floorBounded = false;
-    this.floorBounds = null;
-    this.floorThickness = FLOOR_THICKNESS;
-    this.floorOutline = null;
-    this.drawPreview = null;
 
     this.group = new THREE.Group();
     scene.add(this.group);
@@ -29,10 +22,10 @@ export class Surfaces {
     this.wallBody = addPlaneBody(world, surfaceMat, [0, 0, this.wallZ], [0, 0, 0]);
 
     this.sides = [
-      this._addWall(world, surfaceMat, [-LEFT_RIGHT, 0, 0], [0, Math.PI / 2, 0]), // izquierda: normal +X
-      this._addWall(world, surfaceMat, [LEFT_RIGHT, 0, 0], [0, -Math.PI / 2, 0]), // derecha: normal -X
-      this._addWall(world, surfaceMat, [0, 0, FRONT_BACK], [0, Math.PI, 0]), // frontal: normal -Z
-      this._addWall(world, surfaceMat, [0, CEIL_Y, 0], [Math.PI / 2, 0, 0]), // techo: normal -Y
+      this._addWall(world, surfaceMat, [-LEFT_RIGHT, 0, 0], [0, Math.PI / 2, 0]),
+      this._addWall(world, surfaceMat, [LEFT_RIGHT, 0, 0], [0, -Math.PI / 2, 0]),
+      this._addWall(world, surfaceMat, [0, 0, FRONT_BACK], [0, Math.PI, 0]),
+      this._addWall(world, surfaceMat, [0, CEIL_Y, 0], [Math.PI / 2, 0, 0]),
     ];
 
     this.floorGuide = this._makeGuide('floor', [0, this.floorY, 0], [-Math.PI / 2, 0, 0]);
@@ -84,65 +77,11 @@ export class Surfaces {
     return group;
   }
 
-  _updateFloorOutline() {
-    if (!this.floorOutline) {
-      this.floorOutline = new THREE.LineLoop(
-        new THREE.BufferGeometry(),
-        new THREE.LineBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.9 })
-      );
-      this.floorOutline.position.y = this.floorY;
-      this.group.add(this.floorOutline);
-    }
-    const { cx, cz, halfW, halfD } = this.floorBounds;
-    const pts = [
-      new THREE.Vector3(cx - halfW, 0, cz - halfD),
-      new THREE.Vector3(cx + halfW, 0, cz - halfD),
-      new THREE.Vector3(cx + halfW, 0, cz + halfD),
-      new THREE.Vector3(cx - halfW, 0, cz + halfD),
-    ];
-    this.floorOutline.geometry.setFromPoints(pts);
-    this.floorOutline.position.y = this.floorY;
-    this.floorOutline.visible = this.guidesVisible;
-  }
-
   setFloorY(y) {
     this.floorY = clamp(y, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX);
-    this.floorBody.position.y = this.floorY - (this.floorBounded ? this.floorThickness : 0);
+    this.floorBody.position.y = this.floorY;
     this.floorBody.aabbNeedsUpdate = true;
     this.floorGuide.position.y = this.floorY;
-    if (this.floorOutline) this.floorOutline.position.y = this.floorY;
-  }
-
-  // Registra el cuadrado dibujado como colisionador de referencia (suelo acotado).
-  setBoundedFloor(cx, cz, halfW, halfD, y) {
-    this.floorY = clamp(y, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX);
-    this.floorBounded = true;
-    this.floorBounds = { cx, cz, halfW, halfD };
-
-    this.world.removeBody(this.floorBody);
-
-    const shape = new CANNON.Box(new CANNON.Vec3(halfW, this.floorThickness, halfD));
-    const body = new CANNON.Body({ mass: 0, material: this.material, type: CANNON.Body.STATIC });
-    body.addShape(shape);
-    body.position.set(cx, this.floorY - this.floorThickness, cz);
-    body.aabbNeedsUpdate = true;
-    this.world.addBody(body);
-    this.floorBody = body;
-
-    this.floorGuide.position.y = this.floorY;
-    this._updateFloorOutline();
-  }
-
-  restoreInfiniteFloor(y) {
-    this.floorY = clamp(y, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX);
-    this.floorBounded = false;
-    this.floorBounds = null;
-
-    this.world.removeBody(this.floorBody);
-    this.floorBody = addPlaneBody(this.world, this.material, [0, this.floorY, 0], [-Math.PI / 2, 0, 0]);
-
-    this.floorGuide.position.y = this.floorY;
-    if (this.floorOutline) this.floorOutline.visible = false;
   }
 
   setWallZ(z) {
@@ -152,33 +91,13 @@ export class Surfaces {
     this.wallGuide.position.z = this.wallZ;
   }
 
-  setFloorDrawPreview(a, b, y) {
-    if (!this.drawPreview) {
-      this.drawPreview = new THREE.LineLoop(
-        new THREE.BufferGeometry(),
-        new THREE.LineBasicMaterial({ color: 0xffd166, transparent: true, opacity: 0.95 })
-      );
-      this.group.add(this.drawPreview);
-    }
-    const pts = [
-      new THREE.Vector3(a.x, 0, a.z),
-      new THREE.Vector3(b.x, 0, a.z),
-      new THREE.Vector3(b.x, 0, b.z),
-      new THREE.Vector3(a.x, 0, b.z),
-    ];
-    this.drawPreview.geometry.setFromPoints(pts);
-    this.drawPreview.position.y = y;
-    this.drawPreview.visible = true;
-  }
-
-  clearFloorDrawPreview() {
-    if (this.drawPreview) this.drawPreview.visible = false;
-  }
-
   setGuidesVisible(v) {
     this.guidesVisible = v;
     this.floorGuide.visible = v;
     this.wallGuide.visible = v;
-    if (this.floorOutline) this.floorOutline.visible = v && this.floorBounded;
+  }
+
+  setWallGuideVisible(v) {
+    this.wallGuide.visible = v;
   }
 }

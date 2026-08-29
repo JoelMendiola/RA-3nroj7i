@@ -7,7 +7,6 @@ export class WebXRSession {
     this.referenceSpace = null;
     this.active = false;
 
-    this.forwardSource = null;
     this.downSource = null;
     this.sourcesRequested = false;
 
@@ -60,7 +59,6 @@ export class WebXRSession {
     this.active = false;
     this.session = null;
     this.referenceSpace = null;
-    this.forwardSource = null;
     this.downSource = null;
     this.sourcesRequested = false;
     this.callbacks.onEnd?.();
@@ -74,9 +72,7 @@ export class WebXRSession {
     if (!session) return;
 
     session.requestReferenceSpace('viewer').then((viewerSpace) => {
-      const forward = session.requestHitTestSource({ space: viewerSpace });
-      forward.then((src) => { this.forwardSource = src; }).catch(() => {});
-
+      // Solo rayo hacia abajo para detectar el SUELO.
       if (typeof XRRay !== 'undefined') {
         const downRay = new XRRay(
           { x: 0, y: 0, z: 0, w: 1 },
@@ -95,44 +91,18 @@ export class WebXRSession {
     const pose = hit.getPose(referenceSpace);
     if (!pose) return null;
     const m = pose.transform.matrix;
-    return {
-      px: m[12], py: m[13], pz: m[14],
-      nx: m[8], ny: m[9], nz: m[10],
-    };
+    return { py: m[13], ny: m[9] };
   }
 
-  // Se llama cada frame de la sesión. Devuelve detecciones de planos.
+  // Se llama cada frame de la sesión. Devuelve la altura del suelo.
   onFrame(frame) {
     this.referenceSpace = this.renderer.xr.getReferenceSpace();
     this._requestSources();
 
-    const detections = {
-      floorY: null,   // superficie horizontal (suelo)
-      wallZ: null,    // superficie vertical enfrente (pared)
-    };
+    const detections = { floorY: null };
 
     if (!this.referenceSpace) return detections;
 
-    // Pared: rayo frontal (clasificamos horizontal vs vertical por la normal)
-    if (this.forwardSource) {
-      let results = [];
-      try { results = frame.getHitTestResults(this.forwardSource); } catch {}
-      if (results.length) {
-        const hit = this._readPose(results[0], this.referenceSpace);
-        if (hit) {
-          const ay = Math.abs(hit.ny);
-          const ax = Math.abs(hit.nx);
-          const az = Math.abs(hit.nz);
-          if (ay > ax && ay > az) {
-            detections.floorY = hit.ny > 0 ? hit.py : detections.floorY;
-          } else {
-            detections.wallZ = hit.pz;
-          }
-        }
-      }
-    }
-
-    // Suelo: rayo hacia abajo
     if (this.downSource) {
       let results = [];
       try { results = frame.getHitTestResults(this.downSource); } catch {}

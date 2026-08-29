@@ -7,7 +7,6 @@ import { Surfaces } from './surfaces.js';
 import { spawnObject, sync, grabObject, holdObject, releaseObject } from './objects.js';
 import { createHandLandmarker, HandTracker, HAND_CONNECTIONS } from './hands.js';
 import { createVideoPanels } from './video-panels.js';
-import { SquareTracer, GuardianBoundary } from './boundary.js';
 import { WebXRSession } from './webxr.js';
 
 window.__app = {};
@@ -27,13 +26,8 @@ Object.assign(app, {
   cam: null,
   videoPanels: null,
   webxr: null,
-  guardian: null,
-  tracer: null,
-  floorDraw: { active: false, hand: -1, a: { x: 0, z: 0 }, b: { x: 0, z: 0 }, y: 0 },
   handVis: null,
-  calMode: null,
   mode: 'ar',
-  phase: 'drawing',
   frameCount: 0,
   lastFpsTime: 0,
 });
@@ -171,21 +165,6 @@ function toast(msg) {
 }
 
 function handlePinch(i, h) {
-  if (app.phase !== 'ready') return;
-
-  if (app.calMode === 'floor') {
-    app.floorDraw.active = true;
-    app.floorDraw.hand = i;
-    app.floorDraw.a.x = h.tip.x;
-    app.floorDraw.a.z = h.tip.z;
-    app.floorDraw.b.x = h.tip.x;
-    app.floorDraw.b.z = h.tip.z;
-    app.floorDraw.y = h.tip.y;
-    app.surfaces.setFloorDrawPreview(app.floorDraw.a, app.floorDraw.b, app.floorDraw.y);
-    toast('Dibuja el cuadrado y suelta para fijar el colisionador');
-    return;
-  }
-
   const obj = nearestObject(h, app.cam);
   if (obj) {
     grabObject(obj, i);
@@ -195,48 +174,11 @@ function handlePinch(i, h) {
 }
 
 function handlePinchEnd(i, h) {
-  if (app.calMode === 'floor' && app.floorDraw.active && app.floorDraw.hand === i) {
-    app.floorDraw.b.x = h.tip.x;
-    app.floorDraw.b.z = h.tip.z;
-    finalizeFloorDraw();
-    return;
-  }
-
   const obj = app.heldByHand[i];
   if (obj) {
     releaseObject(obj, h);
     app.heldByHand[i] = null;
     toast('Lanzado');
-  }
-}
-
-function finalizeFloorDraw() {
-  const d = app.floorDraw;
-  const cx = (d.a.x + d.b.x) / 2;
-  const cz = (d.a.z + d.b.z) / 2;
-  const halfW = Math.abs(d.b.x - d.a.x) / 2;
-  const halfD = Math.abs(d.b.z - d.a.z) / 2;
-
-  if (halfW < 0.12 || halfD < 0.12) {
-    toast('Cuadrado demasiado pequeño');
-  } else {
-    app.surfaces.setBoundedFloor(cx, cz, halfW, halfD, d.y);
-    toast(`Suelo calibrado: ${(halfW * 2).toFixed(2)} × ${(halfD * 2).toFixed(2)} m`);
-  }
-  app.surfaces.clearFloorDrawPreview();
-  d.active = false;
-  d.hand = -1;
-  setCalMode(null);
-}
-
-function updateFloorDrawPreview() {
-  const d = app.floorDraw;
-  if (!d.active) return;
-  const h = app.tracker.hands[d.hand];
-  if (h.tracked) {
-    d.b.x = h.tip.x;
-    d.b.z = h.tip.z;
-    app.surfaces.setFloorDrawPreview(d.a, d.b, d.y);
   }
 }
 
@@ -248,7 +190,7 @@ function createHandVisualizers() {
     ptsGeo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(21 * 3), 3));
     const pts = new THREE.Points(ptsGeo, new THREE.PointsMaterial({
       color: colors[i],
-      size: 0.018,
+      size: 0.008,
       sizeAttenuation: true,
     }));
     pts.visible = false;
@@ -306,23 +248,12 @@ function updateHandVisualizers() {
   }
 }
 
-function setCalMode(mode) {
-  app.calMode = mode;
-  const f = document.getElementById('btn-cal-floor');
-  f.classList.toggle('armed', mode === 'floor');
-  document.getElementById('hint').textContent =
-    mode === 'floor'
-      ? 'Dibuja un cuadrado en el suelo: mantén la pinza, arrástrala y suelta para fijar el colisionador.'
-      : 'Pinza (pulgar + índice) cerca de un objeto para agarrarlo · Abre la mano para lanzarlo · Toca la pantalla para crear objetos';
-}
-
 function wireUI() {
   const floorSlider = document.getElementById('slider-floor');
   const wallSlider = document.getElementById('slider-wall');
   const ipdSlider = document.getElementById('slider-ipd');
 
   floorSlider.addEventListener('input', () => {
-    if (app.phase !== 'ready') return;
     app.surfaces.setFloorY(parseFloat(floorSlider.value));
     document.getElementById('out-floor').textContent = fmt(app.surfaces.floorY) + ' m';
   });
@@ -348,10 +279,6 @@ function wireUI() {
     e.target.classList.toggle('active', v);
   });
 
-  document.getElementById('btn-cal-floor').addEventListener('click', () => {
-    setCalMode(app.calMode === 'floor' ? null : 'floor');
-  });
-
   document.getElementById('btn-camera').addEventListener('click', switchCamera);
 
   document.getElementById('btn-webxr').addEventListener('click', () => {
@@ -368,7 +295,6 @@ function wireUI() {
 
 function onTapSpawn(e) {
   if (!app.started) return;
-  if (app.phase !== 'ready') return;
   if (app.mode === 'xr') return;
   if (e.target.closest('#hud')) return;
 
@@ -391,9 +317,7 @@ function updateStatus() {
 
   let text;
   if (app.mode === 'xr') {
-    text = 'AR WebXR · detectando planos';
-  } else if (app.phase !== 'ready') {
-    text = 'Modo VR · Dibuja tu perímetro (cuadrado) con el dedo índice';
+    text = 'AR WebXR · detectando el suelo';
   } else if (app.mode === 'vr') {
     text = `Modo VR · Objetos: ${app.objects.length}`;
   } else {
@@ -447,46 +371,6 @@ function setMode(mode) {
   updateStatus();
 }
 
-function updateDrawing() {
-  if (app.phase !== 'drawing') return;
-
-  const h = app.tracker.hands[0].tracked
-    ? app.tracker.hands[0]
-    : (app.tracker.hands[1].tracked ? app.tracker.hands[1] : null);
-
-  if (!h) return;
-
-  app.tracer.add(h.tip.x, h.tip.y, h.tip.z);
-  app.guardian.updateTrail(app.tracer.pts);
-
-  const verts = app.tracer.getVertices();
-  app.guardian.updateSquare(verts);
-
-  if (app.tracer.pts.length > CONFIG.TRACER_MAX_POINTS) {
-    app.tracer.reset();
-    app.guardian.updateTrail([]);
-  }
-
-  if (app.tracer.closed && verts) {
-    completeBoundary(verts);
-  }
-}
-
-function completeBoundary(verts) {
-  app.phase = 'ready';
-  app.guardian.confirm(verts);
-  app.tracer.reset();
-
-  document.getElementById('btn-cal-floor').disabled = false;
-  document.getElementById('slider-floor').disabled = false;
-
-  document.getElementById('hint').textContent =
-    'Pinza (pulgar + índice) cerca de un objeto para agarrarlo · Abre la mano para lanzarlo · Toca la pantalla para crear objetos';
-
-  toast('Perímetro seguro establecido. Ya puedes interactuar.');
-  updateStatus();
-}
-
 function stepPhysics(dt) {
   app.world.step(1 / 60, dt, 4);
 
@@ -527,8 +411,6 @@ function animate(time, frame) {
 
     stepPhysics(dt);
 
-    updateFloorDrawPreview();
-    updateDrawing();
     updateHandVisualizers();
 
     app.stereo.render(app.scene, app.camera);
@@ -591,17 +473,18 @@ async function enterWebXR() {
     app.tracker.hands[i].reset();
   }
 
-  // Suelo real detectado por 'local-floor' (y = 0)
+  // Suelo real detectado por 'local-floor' (y = 0); ocultamos la pared, solo mostramos el suelo
   app.surfaces.setFloorY(0);
   app.surfaces.setWallZ(-2.5);
   app.surfaces.setGuidesVisible(true);
+  app.surfaces.setWallGuideVisible(false);
   resetObjects('xr');
 
   try {
     await app.webxr.enter();
     document.getElementById('btn-webxr').textContent = 'Salir de AR WebXR';
     updateStatus();
-    toast('AR WebXR: detectando planos…');
+    toast('AR WebXR: detectando el suelo…');
   } catch (err) {
     console.error(err);
     app.mode = 'ar';
@@ -616,6 +499,7 @@ async function exitWebXR() {
 
   app.surfaces.setFloorY(CONFIG.INITIAL_FLOOR_Y);
   app.surfaces.setWallZ(CONFIG.INITIAL_WALL_Z);
+  app.surfaces.setWallGuideVisible(true);
   resetObjects('sbs');
 
   try {
@@ -652,9 +536,6 @@ async function start() {
 
     app.surfaces = new Surfaces(scene, world, surfaceMat);
 
-    app.guardian = new GuardianBoundary(scene);
-    app.tracer = new SquareTracer();
-
     const landmarker = await createHandLandmarker();
     app.tracker = new HandTracker(landmarker);
     app.tracker.cam = app.cam;
@@ -666,9 +547,6 @@ async function start() {
 
     app.webxr = new WebXRSession(renderer);
     app.webxr.callbacks.onFrame = (det) => {
-      if (det.wallZ !== null && det.wallZ < -0.3) {
-        app.surfaces.setWallZ(clamp(det.wallZ, CONFIG.WALL_MIN, CONFIG.WALL_MAX));
-      }
       if (det.floorY !== null) {
         app.surfaces.setFloorY(clamp(det.floorY, CONFIG.FLOOR_MIN, CONFIG.FLOOR_MAX));
       }
@@ -680,16 +558,10 @@ async function start() {
     spawnInitialObjects();
     wireUI();
 
-    // Inicio: accedemos directamente al modo VR y exigimos dibujar el perímetro.
-    app.mode = 'vr';
-    app.phase = 'drawing';
-    app.videoPanels.setVisible(false);
-    app.renderer.setClearColor(CONFIG.VR_BG_COLOR, 1);
-    document.getElementById('btn-camera').disabled = true;
-    document.getElementById('slider-floor').disabled = true;
-    document.getElementById('btn-cal-floor').disabled = true;
-    document.getElementById('hint').textContent =
-      'Dibuja un cuadrado en el aire con tu dedo índice: traza los 4 lados y vuelve al punto de inicio para cerrarlo (en rojo).';
+    // Inicio directo en modo AR con la cámara visible y las interacciones ya habilitadas.
+    app.mode = 'ar';
+    app.videoPanels.setVisible(true);
+    app.renderer.setClearColor(0x000000, 0);
 
     app.lastNow = performance.now();
     app.started = true;
